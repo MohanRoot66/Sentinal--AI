@@ -168,6 +168,8 @@ public class HuggingFaceService {
     }
 
     private boolean isTokenConfigured() {
+        // "local" and "ollama" are valid tokens for local model servers
+        if ("local".equals(apiToken) || "ollama".equals(apiToken)) return true;
         return apiToken != null && !apiToken.isBlank()
                 && !apiToken.equals("hf_PASTE_YOUR_TOKEN_HERE")
                 && !apiToken.startsWith("hf_REPLACE");

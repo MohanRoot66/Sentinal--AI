@@ -52,9 +52,12 @@ public class RCAController {
     }
 
     @GetMapping("/logs")
-    @Operation(summary = "Get recent logs", description = "Returns the most recent 200 logs stored in the database")
-    public ResponseEntity<Map<String, Object>> getRecentLogs() {
-        List<Log> logs = logRepository.findRecentLogs();
+    @Operation(summary = "Get recent logs", description = "Returns logs filtered by scenario (or most recent 200 if no scenario given)")
+    public ResponseEntity<Map<String, Object>> getRecentLogs(
+            @RequestParam(required = false) String scenario) {
+        List<Log> logs = (scenario != null && !scenario.isBlank())
+                ? logRepository.findByScenario(scenario.toUpperCase())
+                : logRepository.findRecentLogs();
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("totalLogs", logs.size());
         resp.put("logs", logs.stream().map(this::toLogMap).toList());

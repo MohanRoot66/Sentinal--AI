@@ -4,6 +4,7 @@ import com.example.sentinalAI.models.Log;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,6 +23,12 @@ public interface LogRepository extends JpaRepository<Log, String> {
 
     @Query("SELECT l FROM Log l ORDER BY l.timestamp DESC LIMIT 200")
     List<Log> findRecentLogs();
+
+    @Query("SELECT l FROM Log l WHERE l.scenario = ?1 ORDER BY l.timestamp DESC LIMIT 200")
+    List<Log> findByScenario(String scenario);
+
+    @Transactional
+    void deleteByScenario(String scenario);
 
     @Query("SELECT l FROM Log l WHERE l.timestamp >= ?1 ORDER BY l.timestamp ASC")
     List<Log> findLogsSince(LocalDateTime since);

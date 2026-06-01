@@ -170,7 +170,7 @@
 
   window.onload = () => {
     loadServices();
-    loadLogs();
+    loadLogs('LATENCY_SPIKE');
     // Auto-select LATENCY_SPIKE since that's what's generated on startup
     selectedScenario = 'LATENCY_SPIKE';
     toast('✅ App started! LATENCY_SPIKE logs auto-loaded. Click "Analyze with HuggingFace AI" to run RCA.');
@@ -180,6 +180,7 @@
     document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
     el.classList.add('active');
     selectedScenario = el.dataset.scenario;
+    loadLogs(selectedScenario);
   }
 
   function showTab(name, el) {
@@ -205,9 +206,10 @@
     } catch(e) { document.getElementById('serviceList').innerHTML = '<div style="color:#f87171;font-size:12px">Failed to load.</div>'; }
   }
 
-  async function loadLogs() {
+  async function loadLogs(scenario) {
     try {
-      const data = await fetch('/api/v1/rca/logs').then(r => r.json());
+      const url = scenario ? `/api/v1/rca/logs?scenario=${scenario}` : '/api/v1/rca/logs';
+      const data = await fetch(url).then(r => r.json());
       const logs = data.logs || [];
       renderLogs(logs);
       if (logs.length > 0) {
@@ -227,7 +229,7 @@
       toast(`✅ ${data.logsGenerated} logs generated!`);
       logsGenerated = true;
       document.getElementById('btnAnalyze').disabled = false;
-      await loadLogs();
+      await loadLogs(selectedScenario);
     } catch(e) { toast('❌ ' + e.message, true); }
     finally { setBusy(false, 'Generate'); }
   }
@@ -258,7 +260,7 @@
       if (!res.ok) { setRcaStatus('error', '❌ ' + (data.error||'Failed')); return; }
       logsGenerated = true;
       document.getElementById('btnAnalyze').disabled = false;
-      await loadLogs();
+      await loadLogs(selectedScenario);
       setRcaStatus('done', `✅ ${data.logsGenerated} logs generated & analyzed in ${(data.analysisTimeMs/1000).toFixed(1)}s`);
       renderRCA(data.rca);
     } catch(e) { setRcaStatus('error', '❌ ' + e.message); }

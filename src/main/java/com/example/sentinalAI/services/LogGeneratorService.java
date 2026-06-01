@@ -38,8 +38,8 @@ public class LogGeneratorService {
             throw new RuntimeException("No services found. DataInitializer may not have run.");
         }
 
-        // Clear old generated logs so we always start fresh
-        logRepository.deleteAll();
+        // Clear old logs for this scenario only, then generate fresh ones
+        logRepository.deleteByScenario(scenario.name());
 
         List<Log> generated = new ArrayList<>();
 
@@ -51,6 +51,10 @@ public class LogGeneratorService {
             case DB_TIMEOUT    -> generated = generateDbTimeoutLogs(services);
             case MEMORY_LEAK   -> generated = generateMemoryLeakLogs(services);
         }
+
+        // Tag all logs with the scenario name
+        final String scenarioName = scenario.name();
+        generated.forEach(l -> l.setScenario(scenarioName));
 
         List<Log> saved = logRepository.saveAll(generated);
         log.info("Generated {} logs for scenario: {}", saved.size(), scenario);

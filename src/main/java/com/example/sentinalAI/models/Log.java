@@ -43,5 +43,8 @@ public class Log extends BaseEntity {
 
     @Column(name = "latency_ms")
     private Long latencyMs;
+
+    @Column(name = "scenario")
+    private String scenario;
 }
 
