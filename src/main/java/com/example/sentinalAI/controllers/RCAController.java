@@ -3,6 +3,7 @@ package com.example.sentinalAI.controllers;
 import com.example.sentinalAI.models.Log;
 import com.example.sentinalAI.repositories.LogRepository;
 import com.example.sentinalAI.services.GeminiService;
+import com.example.sentinalAI.services.LogAnalysisPipeline;
 import com.example.sentinalAI.services.LogGeneratorService;
 import com.example.sentinalAI.services.LogGeneratorService.Scenario;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,6 +28,7 @@ public class RCAController {
 
     private final LogGeneratorService logGeneratorService;
     private final GeminiService geminiService;
+    private final LogAnalysisPipeline pipeline;
     private final LogRepository logRepository;
 
     @PostMapping("/generate-logs")
@@ -66,7 +68,7 @@ public class RCAController {
 
     @PostMapping("/analyze")
     @Operation(summary = "Analyze logs with AI",
-               description = "Sends stored logs to Google Gemini for AI-powered Root Cause Analysis")
+               description = "Runs rule-based anomaly detection pipeline first, then sends only the anomaly report + key evidence to Gemini AI")
     public ResponseEntity<Map<String, Object>> analyzeWithAI(
             @RequestParam(defaultValue = "UNKNOWN") String scenario) {
         log.info("Starting AI analysis for scenario: {}", scenario);
@@ -78,6 +80,9 @@ public class RCAController {
             ));
         }
 
+        // Run pipeline first to get metadata for the response
+        LogAnalysisPipeline.DetectionReport report = pipeline.run(logs, scenario);
+
         long start = System.currentTimeMillis();
         String rca = geminiService.analyzeLogsForRCA(logs, scenario);
         long duration = System.currentTimeMillis() - start;
@@ -88,6 +93,18 @@ public class RCAController {
         resp.put("analysisTimeMs", duration);
         resp.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         resp.put("rca", rca);
+        // Pipeline metadata — shows the demo audience what the pipeline detected
+        resp.put("pipeline", Map.of(
+                "rawLogsIngested", logs.size(),
+                "anomaliesDetected", report.detectedAnomalies().size(),
+                "evidenceLogsSentToAI", report.keyEvidenceLogs().size(),
+                "overallSeverity", report.highestSeverity(),
+                "errorRate", String.format("%.1f%%", report.errorRate() * 100),
+                "peakLatencyMs", report.peakLatencyMs(),
+                "detectedAnomalyTypes", report.detectedAnomalies().stream()
+                        .map(a -> a.type() + " (" + a.severity() + ")")
+                        .toList()
+        ));
         return ResponseEntity.ok(resp);
     }
 
