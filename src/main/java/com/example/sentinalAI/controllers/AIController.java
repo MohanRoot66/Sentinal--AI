@@ -3,7 +3,7 @@ package com.example.sentinalAI.controllers;
 import com.example.sentinalAI.dto.ChatMessageDTO;
 import com.example.sentinalAI.models.Log;
 import com.example.sentinalAI.repositories.LogRepository;
-import com.example.sentinalAI.services.HuggingFaceService;
+import com.example.sentinalAI.services.GeminiService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -19,21 +19,21 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/v1/ai")
 @RequiredArgsConstructor
-@Tag(name = "AI Assistant", description = "AI-powered question answering via HuggingFace")
+@Tag(name = "AI Assistant", description = "AI-powered question answering via Google Gemini")
 public class AIController {
 
-    private final HuggingFaceService huggingFaceService;
+    private final GeminiService geminiService;
     private final LogRepository logRepository;
 
     @PostMapping("/chat")
-    @Operation(summary = "Chat with AI about current logs and incidents")
+    @Operation(summary = "Chat with Gemini AI about current logs and incidents")
     public ResponseEntity<ChatMessageDTO> askQuestion(@RequestBody Map<String, String> request) {
         String question = request.get("question");
 
         // Build log context from recent logs to give the AI real data
         String logContext = buildLogContext();
 
-        String answer = huggingFaceService.answerQuestion(question, logContext);
+        String answer = geminiService.answerQuestion(question, logContext);
 
         ChatMessageDTO response = ChatMessageDTO.builder()
                 .question(question)
@@ -54,7 +54,7 @@ public class AIController {
 
             String sampleLogs = recent.stream()
                     .filter(l -> "ERROR".equals(l.getLogLevel()) || "WARN".equals(l.getLogLevel()))
-                    .limit(10)
+                    .limit(15)
                     .map(l -> String.format("[%s] [%s] [%s] %s",
                             l.getTimestamp() != null ? l.getTimestamp().format(DateTimeFormatter.ofPattern("HH:mm:ss")) : "?",
                             l.getLogLevel(),

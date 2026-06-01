@@ -112,7 +112,7 @@
     <div style="display:flex;flex-direction:column;gap:8px">
       <div class="section-title">Actions</div>
       <button class="btn btn-primary" onclick="generateLogs()" id="btnGenerate">⚙️ Generate Logs</button>
-      <button class="btn btn-secondary" onclick="analyzeWithAI()" id="btnAnalyze" disabled>🤖 Analyze with HuggingFace AI</button>
+      <button class="btn btn-secondary" onclick="analyzeWithAI()" id="btnAnalyze" disabled>🤖 Analyze with Gemini AI</button>
       <button class="btn btn-success" onclick="generateAndAnalyze()" id="btnOneShot">🚀 Generate &amp; Analyze</button>
     </div>
     <div>
@@ -146,7 +146,7 @@
     </div>
     <!-- RCA PANEL -->
     <div class="tab-panel" id="tab-rca">
-      <div class="rca-status rca-idle" id="rcaStatus"><span>💤</span><span>No analysis yet. Generate logs then click <strong>Analyze with HuggingFace AI</strong>.</span></div>
+      <div class="rca-status rca-idle" id="rcaStatus"><span>💤</span><span>No analysis yet. Generate logs then click <strong>Analyze with Gemini AI</strong>.</span></div>
       <div class="rca-output" id="rcaOutput"><span style="color:#475569">AI-generated root cause analysis will appear here after you run the analysis…</span></div>
     </div>
     <!-- CHAT PANEL -->
@@ -238,7 +238,7 @@
     if (!logsGenerated) { toast('Generate logs first!', true); return; }
     setBusy(true, 'Analyze');
     showTab('rca', document.querySelectorAll('.tab')[1]);
-    setRcaStatus('loading', '🔄 Sending logs to HuggingFace model… (30–120s)');
+    setRcaStatus('loading', '🔄 Sending logs to Gemini AI… (5–15s)');
     try {
       const res = await fetch(`/api/v1/rca/analyze?scenario=${selectedScenario}`, {method:'POST'});
       const data = await res.json();
@@ -252,7 +252,7 @@
   async function generateAndAnalyze() {
     setBusy(true, 'Both');
     showTab('rca', document.querySelectorAll('.tab')[1]);
-    setRcaStatus('loading', '⚙️ Generating logs + sending to HuggingFace AI…');
+    setRcaStatus('loading', '⚙️ Generating logs + sending to Gemini AI…');
     toast('🚀 Starting end-to-end analysis for: ' + selectedScenario);
     try {
       const res = await fetch(`/api/v1/rca/generate-and-analyze?scenario=${selectedScenario}`, {method:'POST'});
@@ -335,9 +335,22 @@
         body: JSON.stringify({question: q})
       });
       const data = await res.json();
-      thinking.innerHTML = '<strong>Sentinel AI:</strong> ' + esc(data.answer||'No response.');
-    } catch(e) { thinking.innerHTML = '<strong>Sentinel AI:</strong> ⚠️ Error contacting AI.'; }
+      const answer = data.answer || 'No response.';
+      thinking.innerHTML = '<strong>Sentinel AI:</strong><br>' + renderMarkdown(answer);
+    } catch(e) {
+      thinking.innerHTML = '<strong>Sentinel AI:</strong> ⚠️ Error: ' + e.message;
+    }
     document.getElementById('chatMessages').scrollTop = 99999;
+  }
+
+  function renderMarkdown(text) {
+    return esc(text)
+      .replace(/^## (.+)$/gm, '<h3 style="color:#a78bfa;margin:8px 0 4px">$1</h3>')
+      .replace(/^### (.+)$/gm, '<h4 style="color:#7dd3fc;margin:6px 0 3px">$1</h4>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`([^`\n]+)`/g, '<code style="background:#0f1117;padding:1px 4px;border-radius:3px;color:#f0abfc">$1</code>')
+      .replace(/^- (.+)$/gm, '<li style="margin-left:16px">$1</li>')
+      .replace(/\n/g, '<br>');
   }
 
   function addMsg(role, html) {
@@ -353,7 +366,7 @@
     const el = document.getElementById('rcaStatus');
     el.className = 'rca-status rca-' + type;
     el.innerHTML = type==='loading' ? `<div class="spinner"></div><span>${msg}</span>` : `<span>${msg}</span>`;
-    if (type==='loading') document.getElementById('rcaOutput').innerHTML = '<span style="color:#475569">Waiting for HuggingFace model response…</span>';
+    if (type==='loading') document.getElementById('rcaOutput').innerHTML = '<span style="color:#475569">Waiting for Gemini AI response…</span>';
   }
 
   function setBusy(on, which) {

@@ -2,7 +2,7 @@ package com.example.sentinalAI.controllers;
 
 import com.example.sentinalAI.models.Log;
 import com.example.sentinalAI.repositories.LogRepository;
-import com.example.sentinalAI.services.HuggingFaceService;
+import com.example.sentinalAI.services.GeminiService;
 import com.example.sentinalAI.services.LogGeneratorService;
 import com.example.sentinalAI.services.LogGeneratorService.Scenario;
 import io.swagger.v3.oas.annotations.Operation;
@@ -26,7 +26,7 @@ import java.util.Map;
 public class RCAController {
 
     private final LogGeneratorService logGeneratorService;
-    private final HuggingFaceService huggingFaceService;
+    private final GeminiService geminiService;
     private final LogRepository logRepository;
 
     @PostMapping("/generate-logs")
@@ -66,7 +66,7 @@ public class RCAController {
 
     @PostMapping("/analyze")
     @Operation(summary = "Analyze logs with AI",
-               description = "Sends stored logs to HuggingFace model for AI-powered Root Cause Analysis")
+               description = "Sends stored logs to Google Gemini for AI-powered Root Cause Analysis")
     public ResponseEntity<Map<String, Object>> analyzeWithAI(
             @RequestParam(defaultValue = "UNKNOWN") String scenario) {
         log.info("Starting AI analysis for scenario: {}", scenario);
@@ -79,7 +79,7 @@ public class RCAController {
         }
 
         long start = System.currentTimeMillis();
-        String rca = huggingFaceService.analyzeLogsForRCA(logs, scenario);
+        String rca = geminiService.analyzeLogsForRCA(logs, scenario);
         long duration = System.currentTimeMillis() - start;
 
         Map<String, Object> resp = new LinkedHashMap<>();
@@ -93,16 +93,16 @@ public class RCAController {
 
     @PostMapping("/generate-and-analyze")
     @Operation(summary = "Generate logs and immediately analyze with AI",
-               description = "One-shot: generates logs for the scenario then runs AI analysis")
+               description = "One-shot: generates logs for the scenario then runs Gemini AI analysis")
     public ResponseEntity<Map<String, Object>> generateAndAnalyze(
             @RequestParam(defaultValue = "LATENCY_SPIKE") String scenario) {
         try {
             Scenario s = Scenario.valueOf(scenario.toUpperCase());
             List<Log> logs = logGeneratorService.generateLogs(s);
-            log.info("Generated {} logs for scenario {}. Starting AI analysis...", logs.size(), scenario);
+            log.info("Generated {} logs for scenario {}. Starting Gemini AI analysis...", logs.size(), scenario);
 
             long start = System.currentTimeMillis();
-            String rca = huggingFaceService.analyzeLogsForRCA(logs, scenario);
+            String rca = geminiService.analyzeLogsForRCA(logs, scenario);
             long duration = System.currentTimeMillis() - start;
 
             Map<String, Object> resp = new LinkedHashMap<>();
@@ -132,4 +132,3 @@ public class RCAController {
         return m;
     }
 }
-
