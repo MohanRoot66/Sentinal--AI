@@ -30,6 +30,14 @@
 		<java.version>17</java.version>
 	</properties>
 	<dependencies>
+		<!-- DevTools: auto-reloads static files & restarts on code changes -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+
 		<!-- Spring Boot Web & REST -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
