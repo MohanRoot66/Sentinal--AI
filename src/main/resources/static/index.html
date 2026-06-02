@@ -84,6 +84,13 @@
     .chat-input-row input:focus { border-color: #7c3aed; }
     .chat-input-row button { background: #7c3aed; border: none; border-radius: 8px; padding: 10px 16px; color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; }
     .chat-input-row button:hover { background: #6d28d9; }
+    .chat-input-row button:disabled { opacity: .5; cursor: not-allowed; background: #4c1d95; }
+    .typing-indicator { display: flex; align-items: center; gap: 6px; padding: 10px 14px; }
+    .typing-dot { width: 8px; height: 8px; border-radius: 50%; background: #7c3aed; animation: typingBounce 1.2s infinite; }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingBounce { 0%,60%,100% { transform: translateY(0); opacity:.4; } 30% { transform: translateY(-8px); opacity:1; } }
+    .chat-timer { font-size: 11px; color: #64748b; margin-left: 4px; }
   </style>
 </head>
 <body>
@@ -112,7 +119,7 @@
     <div style="display:flex;flex-direction:column;gap:8px">
       <div class="section-title">Actions</div>
       <button class="btn btn-primary" onclick="generateLogs()" id="btnGenerate">⚙️ Generate Logs</button>
-      <button class="btn btn-secondary" onclick="analyzeWithAI()" id="btnAnalyze" disabled>🤖 Analyze with Gemini AI</button>
+      <button class="btn btn-secondary" onclick="analyzeWithAI()" id="btnAnalyze" disabled>🤖 Analyze with Local AI</button>
       <button class="btn btn-success" onclick="generateAndAnalyze()" id="btnOneShot">🚀 Generate &amp; Analyze</button>
     </div>
     <div>
@@ -125,6 +132,8 @@
     <div class="tabs">
       <div class="tab active" onclick="showTab('logs',this)">📋 Log Viewer</div>
       <div class="tab" onclick="showTab('rca',this)">🤖 AI Root Cause Analysis</div>
+      <div class="tab" onclick="showTab('incidents',this)">🚨 Incidents</div>
+      <div class="tab" onclick="showTab('insights',this)">💡 Insights</div>
       <div class="tab" onclick="showTab('chat',this)">💬 AI Chat</div>
     </div>
     <!-- LOG VIEWER -->
@@ -146,7 +155,7 @@
     </div>
     <!-- RCA PANEL -->
     <div class="tab-panel" id="tab-rca">
-      <div class="rca-status rca-idle" id="rcaStatus"><span>💤</span><span>No analysis yet. Generate logs then click <strong>Analyze with Gemini AI</strong>.</span></div>
+      <div class="rca-status rca-idle" id="rcaStatus"><span>💤</span><span>No analysis yet. Generate logs then click <strong>Analyze with Local AI</strong>.</span></div>
       <div id="pipelineBar" style="display:none;background:#1a1f2e;border:1px solid #2d3748;border-radius:8px;padding:12px 16px;flex-shrink:0;font-size:12px">
         <div style="color:#64748b;font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">🔬 Analysis Pipeline</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
@@ -177,15 +186,59 @@
       </div>
       <div class="rca-output" id="rcaOutput"><span style="color:#475569">AI-generated root cause analysis will appear here after you run the analysis…</span></div>
     </div>
+    <!-- INCIDENTS PANEL -->
+    <div class="tab-panel" id="tab-incidents">
+      <div class="stats-bar" style="flex-shrink:0">
+        <div class="stat-card"><div class="stat-label">Active Incidents</div><div class="stat-value" id="incTotal" style="color:#f87171">0</div></div>
+        <div class="stat-card"><div class="stat-label">Critical</div><div class="stat-value" id="incCritical" style="color:#f87171">0</div></div>
+        <div class="stat-card"><div class="stat-label">High</div><div class="stat-value" id="incHigh" style="color:#fb923c">0</div></div>
+        <div class="stat-card"><div class="stat-label">Resolved</div><div class="stat-value" id="incResolved" style="color:#10b981">0</div></div>
+      </div>
+      <div id="incidentList" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-top:4px">
+        <div style="color:#64748b;text-align:center;padding:40px">Generate logs and run analysis to create incidents.</div>
+      </div>
+    </div>
+
+    <!-- INSIGHTS PANEL -->
+    <div class="tab-panel" id="tab-insights">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;flex-shrink:0">
+        <div class="stat-card">
+          <div class="stat-label">🔥 Most Error-Prone Service</div>
+          <div id="ins-hot-service" style="color:#f87171;font-weight:700;font-size:15px;margin-top:4px">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">⚡ Overall Error Rate</div>
+          <div id="ins-error-rate" style="color:#fb923c;font-weight:700;font-size:15px;margin-top:4px">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">🐢 Slowest Service (p95)</div>
+          <div id="ins-slow-service" style="color:#fbbf24;font-weight:700;font-size:15px;margin-top:4px">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">📊 Scenarios Generated</div>
+          <div id="ins-scenarios" style="color:#a78bfa;font-weight:700;font-size:15px;margin-top:4px">—</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:14px;margin-top:4px;flex:1;min-height:0">
+        <div style="flex:1;background:#1a1f2e;border:1px solid #2d3748;border-radius:8px;padding:16px;overflow-y:auto">
+          <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">🔍 Anomaly Breakdown</div>
+          <div id="ins-anomaly-breakdown" style="color:#64748b;font-size:12px">Run analysis to see anomaly breakdown.</div>
+        </div>
+        <div style="flex:1;background:#1a1f2e;border:1px solid #2d3748;border-radius:8px;padding:16px;overflow-y:auto">
+          <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">🛡️ Recommendations</div>
+          <div id="ins-recommendations" style="color:#64748b;font-size:12px">Run analysis to see recommendations.</div>
+        </div>
+      </div>
+    </div>
+
     <!-- CHAT PANEL -->
-    <div class="tab-panel" id="tab-chat">
-      <div class="chat-wrap">
+    <div class="tab-panel" id="tab-chat">      <div class="chat-wrap">
         <div class="chat-messages" id="chatMessages">
-          <div class="chat-msg chat-ai"><strong>Sentinel AI:</strong> Hello! I'm your AI assistant. Generate logs using the sidebar, then ask me about the incident or root cause.</div>
+          <div class="chat-msg chat-ai"><strong>🤖 Mistral (Local):</strong> Hello! I'm running locally via Ollama. Generate logs first, then ask me about the incident — e.g. <em>"Why did latency spike?"</em> or <em>"What should I fix first?"</em>. Note: I may take 15–60s to respond.</div>
         </div>
         <div class="chat-input-row">
           <input type="text" id="chatInput" placeholder="Ask: Why did latency spike? What's the fix?" onkeydown="if(event.key==='Enter')sendChat()"/>
-          <button onclick="sendChat()">Send</button>
+          <button id="chatSendBtn" onclick="sendChat()">Send</button>
         </div>
       </div>
     </div>
@@ -195,6 +248,7 @@
 <script>
   let selectedScenario = 'LATENCY_SPIKE';
   let logsGenerated = false;
+  let lastRCA = '';  // stores last RCA output for chat context
 
   window.onload = () => {
     loadServices();
@@ -267,7 +321,7 @@
     setBusy(true, 'Analyze');
     showTab('rca', document.querySelectorAll('.tab')[1]);
     document.getElementById('pipelineBar').style.display = 'none';
-    setRcaStatus('loading', '🔄 Sending logs to Gemini AI… (5–15s)');
+    setRcaStatus('loading', '🔄 Running rule-based detection → sending to local Ollama model…');
     try {
       const res = await fetch(`/api/v1/rca/analyze?scenario=${selectedScenario}`, {method:'POST'});
       const data = await res.json();
@@ -279,8 +333,11 @@
     finally { setBusy(false, 'Analyze'); }
   }
 
+  let lastPipeline = null; // stores last pipeline metadata for Incidents & Insights
+
   function showPipelineBar(p) {
     if (!p) return;
+    lastPipeline = p;
     document.getElementById('pipelineBar').style.display = 'block';
     document.getElementById('pip-raw').textContent = p.rawLogsIngested || '—';
     document.getElementById('pip-anomalies').textContent = p.anomaliesDetected || '0';
@@ -293,12 +350,99 @@
       document.getElementById('pip-anomaly-list').innerHTML =
         '⚡ Detected: ' + p.detectedAnomalyTypes.map(a => `<span style="background:#1a1f2e;border:1px solid #7c3aed44;border-radius:4px;padding:1px 6px;margin:2px">${a}</span>`).join(' ');
     }
+    refreshIncidents(p);
+    refreshInsights(p);
+  }
+
+  function refreshIncidents(p) {
+    if (!p) return;
+    const anomalies = p.detectedAnomalyTypes || [];
+    const sev = p.overallSeverity || 'LOW';
+    const sevColor = sev==='CRITICAL'?'#f87171':sev==='HIGH'?'#fb923c':sev==='MEDIUM'?'#fbbf24':'#10b981';
+    const critical = anomalies.filter(a=>a.includes('CRITICAL')).length;
+    const high     = anomalies.filter(a=>a.includes('HIGH')).length;
+
+    document.getElementById('incTotal').textContent    = anomalies.length;
+    document.getElementById('incCritical').textContent = critical;
+    document.getElementById('incHigh').textContent     = high;
+    document.getElementById('incResolved').textContent = 0;
+
+    const now = new Date().toLocaleTimeString();
+    const list = document.getElementById('incidentList');
+    if (!anomalies.length) {
+      list.innerHTML = '<div style="color:#10b981;text-align:center;padding:40px">✅ No anomalies detected. System healthy.</div>';
+      return;
+    }
+
+    list.innerHTML = anomalies.map((a, i) => {
+      const [type, rawSev] = a.split(' (');
+      const severity = (rawSev||'').replace(')','');
+      const sc = severity==='CRITICAL'?'#f87171':severity==='HIGH'?'#fb923c':severity==='MEDIUM'?'#fbbf24':'#10b981';
+      const icon = severity==='CRITICAL'?'🔴':severity==='HIGH'?'🟠':severity==='MEDIUM'?'🟡':'🟢';
+      return `<div style="background:#1a1f2e;border:1px solid ${sc}44;border-left:3px solid ${sc};border-radius:8px;padding:12px 16px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="font-weight:600;color:#e2e8f0;font-size:13px">${icon} INC-${String(i+1).padStart(3,'0')} · ${type.replace(/_/g,' ')}</div>
+          <span style="background:${sc}22;color:${sc};border:1px solid ${sc}44;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700">${severity}</span>
+        </div>
+        <div style="margin-top:6px;font-size:12px;color:#94a3b8">Scenario: <strong style="color:#a78bfa">${selectedScenario}</strong> · Detected at ${now}</div>
+        <div style="margin-top:4px;font-size:12px;color:#64748b">Logs analysed: ${p.rawLogsIngested} · Evidence logs: ${p.evidenceLogsSentToAI} · Error rate: ${p.errorRate}</div>
+      </div>`;
+    }).join('');
+  }
+
+  function refreshInsights(p) {
+    if (!p) return;
+    const anomalies = p.detectedAnomalyTypes || [];
+    const sev = p.overallSeverity || 'LOW';
+
+    // Error rate card
+    document.getElementById('ins-error-rate').textContent = p.errorRate || '—';
+    document.getElementById('ins-scenarios').textContent  = selectedScenario;
+
+    // Peak latency
+    document.getElementById('ins-slow-service').textContent =
+      p.peakLatencyMs ? p.peakLatencyMs + 'ms peak' : '—';
+
+    // Hot service from anomaly types
+    const hotspot = anomalies.find(a => a.includes('HOT_SPOT'));
+    document.getElementById('ins-hot-service').textContent = hotspot
+      ? hotspot.replace('SERVICE_HOT_SPOT','').replace(/[()]/g,'').trim() || 'See RCA'
+      : (anomalies.length ? 'Multiple' : '—');
+
+    // Anomaly breakdown
+    const breakdownEl = document.getElementById('ins-anomaly-breakdown');
+    if (!anomalies.length) {
+      breakdownEl.innerHTML = '<span style="color:#10b981">✅ No anomalies detected</span>';
+    } else {
+      breakdownEl.innerHTML = anomalies.map(a => {
+        const [type, rawSev] = a.split(' (');
+        const severity = (rawSev||'').replace(')','');
+        const sc = severity==='CRITICAL'?'#f87171':severity==='HIGH'?'#fb923c':severity==='MEDIUM'?'#fbbf24':'#10b981';
+        return `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #2d3748">
+          <span style="color:#cbd5e1;font-size:12px">${type.replace(/_/g,' ')}</span>
+          <span style="color:${sc};font-size:11px;font-weight:700">${severity}</span>
+        </div>`;
+      }).join('');
+    }
+
+    // Recommendations based on detected anomalies
+    const recEl = document.getElementById('ins-recommendations');
+    const recs = [];
+    if (anomalies.some(a=>a.includes('LATENCY')))      recs.push('🔧 Check connection pool size and upstream service timeouts');
+    if (anomalies.some(a=>a.includes('ERROR_RATE')))   recs.push('🔧 Review recent deployments — consider rollback if error rate > 15%');
+    if (anomalies.some(a=>a.includes('CASCADE')))      recs.push('🔧 Add circuit breakers between services to prevent cascading failures');
+    if (anomalies.some(a=>a.includes('HOT_SPOT')))     recs.push('🔧 Scale out the hot-spot service or add request throttling');
+    if (anomalies.some(a=>a.includes('DB_TIMEOUT')||a.includes('DB'))) recs.push('🔧 Check for missing indexes and long-running queries');
+    if (anomalies.some(a=>a.includes('ERROR_BURST')))  recs.push('🔧 Set up alerting for error burst windows > 3 errors/60s');
+    if (anomalies.some(a=>a.includes('5XX')))          recs.push('🔧 Enable health checks and auto-restart for services returning 5xx');
+    if (!recs.length) recs.push('✅ System healthy — no immediate action required');
+    recEl.innerHTML = recs.map(r => `<div style="padding:5px 0;border-bottom:1px solid #2d3748;font-size:12px;color:#cbd5e1">${r}</div>`).join('');
   }
 
   async function generateAndAnalyze() {
     setBusy(true, 'Both');
     showTab('rca', document.querySelectorAll('.tab')[1]);
-    setRcaStatus('loading', '⚙️ Generating logs + sending to Gemini AI…');
+    setRcaStatus('loading', '⚙️ Generating logs → detecting anomalies → sending to Ollama…');
     toast('🚀 Starting end-to-end analysis for: ' + selectedScenario);
     try {
       const res = await fetch(`/api/v1/rca/generate-and-analyze?scenario=${selectedScenario}`, {method:'POST'});
@@ -316,7 +460,7 @@
   function renderLogs(logs) {
     const tbody = document.getElementById('logTableBody');
     if (!logs.length) {
-      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#64748b">No logs. Click Generate Logs.</td></tr>';
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:30px;color:#64748b">No logs for <strong style="color:#a78bfa">${selectedScenario}</strong>. Click <strong>Generate Logs</strong> to generate them.</td></tr>`;
       updateStats([]);
       return;
     }
@@ -340,23 +484,26 @@
   }
 
   function updateStats(logs) {
-    const errors = logs.filter(l=>l.level==='ERROR').length;
-    const warns  = logs.filter(l=>l.level==='WARN').length;
+    const errors = logs.filter(l=>(l.level||l.logLevel)==='ERROR').length;
+    const warns  = logs.filter(l=>(l.level||l.logLevel)==='WARN').length;
     const lats   = logs.map(l=>l.latencyMs||0).filter(v=>v>0);
     const peak   = lats.length ? Math.max(...lats) : 0;
     document.getElementById('statTotal').textContent   = logs.length;
     document.getElementById('statErrors').textContent  = errors;
     document.getElementById('statWarns').textContent   = warns;
     document.getElementById('statLatency').textContent = peak>0?peak+'ms':'—';
-    document.getElementById('logStats').innerHTML = `<div style="color:#94a3b8;font-size:12px">
-      Scenario: <strong style="color:#a78bfa">${selectedScenario}</strong><br>
-      Logs: ${logs.length} | Errors: <span style="color:#f87171">${errors}</span> | Warns: <span style="color:#fbbf24">${warns}</span><br>
-      Peak latency: ${peak>0?'<span style="color:#fb923c">'+peak+'ms</span>':'N/A'}
-    </div>`;
+    document.getElementById('logStats').innerHTML = logs.length === 0
+      ? `<div style="color:#64748b;font-size:12px">No logs for <strong style="color:#a78bfa">${selectedScenario}</strong> yet. Click <strong>Generate Logs</strong>.</div>`
+      : `<div style="color:#94a3b8;font-size:12px">
+          Scenario: <strong style="color:#a78bfa">${selectedScenario}</strong><br>
+          Logs: ${logs.length} | Errors: <span style="color:#f87171">${errors}</span> | Warns: <span style="color:#fbbf24">${warns}</span><br>
+          Peak latency: ${peak>0?'<span style="color:#fb923c">'+peak+'ms</span>':'N/A'}
+        </div>`;
   }
 
   function renderRCA(text) {
     if (!text) { document.getElementById('rcaOutput').innerHTML = '<span style="color:#64748b">No analysis returned.</span>'; return; }
+    lastRCA = text; // store for chat context
     let html = esc(text)
       .replace(/^## (.+)$/gm, '<h2>$1</h2>')
       .replace(/^### (.+)$/gm, '<h3 style="color:#7dd3fc;margin:10px 0 4px">$1</h3>')
@@ -369,24 +516,56 @@
   }
 
   async function sendChat() {
-    const input = document.getElementById('chatInput');
+    const input   = document.getElementById('chatInput');
+    const sendBtn = document.getElementById('chatSendBtn');
     const q = input.value.trim();
     if (!q) return;
     input.value = '';
+    input.disabled = true;
+    sendBtn.disabled = true;
+    sendBtn.textContent = '⏳';
+
     addMsg('user', q);
-    const thinking = addMsg('ai', '<span style="color:#64748b">🤔 Thinking…</span>');
+
+    // Animated typing indicator with live elapsed timer
+    const thinking = addMsg('ai', '');
+    let elapsed = 0;
+
+    function updateTimer() {
+      thinking.innerHTML = `
+        <div class="typing-indicator">
+          <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+          <span class="chat-timer">Mistral is thinking… ${elapsed}s</span>
+        </div>`;
+    }
+    updateTimer();
+    const timer = setInterval(() => { elapsed++; updateTimer(); }, 1000);
+
     try {
       const res = await fetch('/api/v1/ai/chat', {
-        method: 'POST', headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({question: q})
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({question: q, rcaContext: lastRCA, scenario: selectedScenario})
       });
+      clearInterval(timer);
+      if (!res.ok) {
+        const err = await res.text();
+        thinking.innerHTML = `<strong>🤖 Mistral:</strong> ⚠️ Server error ${res.status}: ${esc(err)}`;
+        return;
+      }
       const data = await res.json();
-      const answer = data.answer || 'No response.';
-      thinking.innerHTML = '<strong>Sentinel AI:</strong><br>' + renderMarkdown(answer);
+      const answer = data.answer || 'No response received.';
+      thinking.innerHTML = '<strong>🤖 Mistral:</strong><br>' + renderMarkdown(answer);
     } catch(e) {
-      thinking.innerHTML = '<strong>Sentinel AI:</strong> ⚠️ Error: ' + e.message;
+      clearInterval(timer);
+      thinking.innerHTML = `<strong>🤖 Mistral:</strong> ⚠️ Network error — ${esc(e.message)}. Check that the Spring Boot app is running on port 8080.`;
+    } finally {
+      input.disabled = false;
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Send';
+      input.focus();
+      document.getElementById('chatMessages').scrollTop = 99999;
     }
-    document.getElementById('chatMessages').scrollTop = 99999;
   }
 
   function renderMarkdown(text) {
@@ -412,7 +591,7 @@
     const el = document.getElementById('rcaStatus');
     el.className = 'rca-status rca-' + type;
     el.innerHTML = type==='loading' ? `<div class="spinner"></div><span>${msg}</span>` : `<span>${msg}</span>`;
-    if (type==='loading') document.getElementById('rcaOutput').innerHTML = '<span style="color:#475569">Waiting for Gemini AI response…</span>';
+    if (type==='loading') document.getElementById('rcaOutput').innerHTML = '<span style="color:#475569">Waiting for local Ollama model response…</span>';
   }
 
   function setBusy(on, which) {
@@ -439,439 +618,3 @@
 </script>
 </body>
 </html>
-
-    <title>Sentinel AI - POC Dashboard</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 1400px;
-            margin: 0 auto;
-        }
-
-        header {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        header h1 {
-            color: #667eea;
-            font-size: 28px;
-            margin-bottom: 5px;
-        }
-
-        header p {
-            color: #666;
-            font-size: 14px;
-        }
-
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .card {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        .card h2 {
-            color: #333;
-            font-size: 18px;
-            margin-bottom: 15px;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 10px;
-        }
-
-        .metric {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding: 10px;
-            background: #f9f9f9;
-            border-radius: 4px;
-        }
-
-        .metric-label {
-            color: #666;
-            font-weight: 500;
-        }
-
-        .metric-value {
-            font-size: 18px;
-            font-weight: bold;
-            color: #667eea;
-        }
-
-        .status-healthy {
-            color: #10b981;
-        }
-
-        .status-degraded {
-            color: #f59e0b;
-        }
-
-        .status-critical {
-            color: #ef4444;
-        }
-
-        .anomaly-box {
-            background: #fef3c7;
-            border-left: 4px solid #f59e0b;
-            padding: 15px;
-            margin-bottom: 15px;
-            border-radius: 4px;
-        }
-
-        .anomaly-title {
-            font-weight: bold;
-            color: #d97706;
-            margin-bottom: 8px;
-        }
-
-        .anomaly-desc {
-            color: #92400e;
-            font-size: 14px;
-            line-height: 1.5;
-        }
-
-        .ai-explanation {
-            background: #eff6ff;
-            border-left: 4px solid #3b82f6;
-            padding: 15px;
-            margin-top: 20px;
-            border-radius: 4px;
-        }
-
-        .ai-title {
-            font-weight: bold;
-            color: #1e40af;
-            margin-bottom: 8px;
-        }
-
-        .ai-text {
-            color: #1e3a8a;
-            font-size: 14px;
-            line-height: 1.6;
-        }
-
-        .chat-section {
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        .chat-messages {
-            background: #f9f9f9;
-            border-radius: 4px;
-            padding: 15px;
-            height: 300px;
-            overflow-y: auto;
-            margin-bottom: 15px;
-        }
-
-        .message {
-            margin-bottom: 10px;
-            padding: 10px;
-            border-radius: 4px;
-        }
-
-        .message.user {
-            background: #dbeafe;
-            text-align: right;
-            color: #1e40af;
-        }
-
-        .message.assistant {
-            background: #f0fdf4;
-            color: #166534;
-        }
-
-        .chat-input {
-            display: flex;
-            gap: 10px;
-        }
-
-        input[type="text"] {
-            flex: 1;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        button {
-            background: #667eea;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: background 0.3s;
-        }
-
-        button:hover {
-            background: #764ba2;
-        }
-
-        .api-docs-link {
-            background: white;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            margin-top: 20px;
-        }
-
-        .api-docs-link a {
-            color: #667eea;
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        .api-docs-link a:hover {
-            text-decoration: underline;
-        }
-
-        .demo-scenario {
-            background: #f3e8ff;
-            border: 2px solid #a78bfa;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-        }
-
-        .demo-scenario h3 {
-            color: #7c3aed;
-            margin-bottom: 10px;
-        }
-
-        .demo-scenario p {
-            color: #5b21b6;
-            line-height: 1.6;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <header>
-            <h1>🚀 Sentinel AI - POC Dashboard</h1>
-            <p>AI-powered silent failure detection and operational intelligence platform</p>
-        </header>
-
-        <div class="demo-scenario">
-            <h3>📋 DEMO SCENARIO: Latency Spike Detection</h3>
-            <p>
-                This scenario demonstrates how Sentinel AI detects a silent failure before traditional alerts fire.
-                A downstream inventory service slowed after deployment, causing retry storms and gradual latency increase
-                in the order API. The system automatically correlates these events, explains the root cause, and provides
-                AI-powered reasoning to accelerate incident resolution.
-            </p>
-        </div>
-
-        <div class="dashboard-grid">
-            <!-- System Health Overview -->
-            <div class="card">
-                <h2>📊 System Health</h2>
-                <div class="metric">
-                    <span class="metric-label">Order API</span>
-                    <span class="metric-value status-critical">DEGRADED</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">Inventory Service</span>
-                    <span class="metric-value status-critical">CRITICAL</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">Payment Service</span>
-                    <span class="metric-value status-healthy">HEALTHY</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">Checkout API</span>
-                    <span class="metric-value status-degraded">DEGRADED</span>
-                </div>
-            </div>
-
-            <!-- Key Metrics -->
-            <div class="card">
-                <h2>📈 Key Metrics (Last 5 mins)</h2>
-                <div class="metric">
-                    <span class="metric-label">Avg Latency</span>
-                    <span class="metric-value">87ms (+37%)</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">Error Rate</span>
-                    <span class="metric-value">3.2% (↑)</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">Retry Rate</span>
-                    <span class="metric-value">12.5 retries/sec (↑↑)</span>
-                </div>
-                <div class="metric">
-                    <span class="metric-label">Anomaly Score</span>
-                    <span class="metric-value status-critical">0.87</span>
-                </div>
-            </div>
-
-            <!-- Detected Anomalies -->
-            <div class="card">
-                <h2>⚠️ Detected Anomalies</h2>
-                <div class="anomaly-box">
-                    <div class="anomaly-title">Latency Spike - Order API</div>
-                    <div class="anomaly-desc">
-                        API latency increased by 37% following deployment v2.3.
-                        Confidence: 87%
-                    </div>
-                </div>
-                <div class="anomaly-box">
-                    <div class="anomaly-title">Retry Storm - Order API</div>
-                    <div class="anomaly-desc">
-                        Abnormal retry rate spike detected.
-                        Confidence: 79%
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- AI Root Cause Explanation -->
-        <div class="card">
-            <h2>🤖 AI-Powered Root Cause Analysis</h2>
-            <div class="ai-explanation">
-                <div class="ai-title">LATENCY_SPIKE detected with confidence score 87.00% on service order-api.</div>
-                <div class="ai-text">
-                    <p><strong>Analysis:</strong></p>
-                    <p>
-                        API latency increased significantly. Error logs indicate: "Inventory service timeout: Response time exceeded 5000ms.
-                        Retry attempt 1 for inventory API call. Retry attempt 2 for inventory API call."
-                    </p>
-                    <p style="margin-top: 10px;"><strong>Root Cause Chain:</strong></p>
-                    <p>
-                        1. Inventory service deployment v2.3 modified retry logic<br>
-                        2. Downstream timeout caused cascading retries<br>
-                        3. Thread pool exhaustion in order-api<br>
-                        4. Checkout latency increased to 87ms<br>
-                        5. 15,000 concurrent users experiencing slowness
-                    </p>
-                    <p style="margin-top: 10px;"><strong>Severity: HIGH | Impact: Checkout users | MTTR Reduction: 45+ minutes</strong></p>
-                </div>
-            </div>
-        </div>
-
-        <!-- AI Chat Assistant -->
-        <div class="chat-section">
-            <h2>💬 AI Assistant Chat</h2>
-            <div class="chat-messages" id="chatMessages">
-                <div class="message assistant">
-                    <strong>Sentinel AI:</strong> Hello! I'm your AI operational assistant. Ask me about the current incident,
-                    root causes, affected systems, or recommended actions.
-                </div>
-            </div>
-            <div class="chat-input">
-                <input type="text" id="chatInput" placeholder="Ask a question... e.g., 'Why did latency increase?'" />
-                <button onclick="sendMessage()">Send</button>
-            </div>
-        </div>
-
-        <!-- Incident Summary -->
-        <div class="card" style="margin-top: 20px;">
-            <h2>📋 Auto-Generated Incident Summary</h2>
-            <div class="metric">
-                <span class="metric-label">Incident ID</span>
-                <span class="metric-value">INC-2026-05-22-001</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Title</span>
-                <span class="metric-value">LATENCY_SPIKE Alert - order-api</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Severity</span>
-                <span class="metric-value status-critical">HIGH</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Status</span>
-                <span class="metric-value">INVESTIGATING</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Detection Time</span>
-                <span class="metric-value">2026-05-22 10:35:42</span>
-            </div>
-            <div style="background: #f9f9f9; padding: 15px; margin-top: 15px; border-radius: 4px;">
-                <strong>Recommended Actions:</strong>
-                <ul style="margin-left: 20px; margin-top: 10px; color: #666;">
-                    <li>Acknowledge incident in AlertManager</li>
-                    <li>Review deployment v2.3 rollback feasibility</li>
-                    <li>Monitor inventory-service response times</li>
-                    <li>Check and adjust retry configuration</li>
-                    <li>Prepare for potential rollback execution</li>
-                </ul>
-            </div>
-        </div>
-
-    </div>
-
-    <script>
-        function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const messages = document.getElementById('chatMessages');
-            const question = input.value.trim();
-
-            if (!question) return;
-
-            // Add user message
-            const userMsg = document.createElement('div');
-            userMsg.className = 'message user';
-            userMsg.innerHTML = '<strong>You:</strong> ' + question;
-            messages.appendChild(userMsg);
-
-            // Simulate API call to AI endpoint
-            fetch('/api/v1/ai/chat', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ question: question })
-            })
-            .then(res => res.json())
-            .then(data => {
-                const aiMsg = document.createElement('div');
-                aiMsg.className = 'message assistant';
-                aiMsg.innerHTML = '<strong>Sentinel AI:</strong> ' + data.answer;
-                messages.appendChild(aiMsg);
-                messages.scrollTop = messages.scrollHeight;
-            })
-            .catch(err => {
-                const aiMsg = document.createElement('div');
-                aiMsg.className = 'message assistant';
-                aiMsg.innerHTML = '<strong>Sentinel AI:</strong> I\'m analyzing your question...';
-                messages.appendChild(aiMsg);
-            });
-
-            input.value = '';
-            messages.scrollTop = messages.scrollHeight;
-        }
-
-        // Allow Enter key to send message
-        document.getElementById('chatInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') sendMessage();
-        });
-    </script>
-</body>
-</html>
-

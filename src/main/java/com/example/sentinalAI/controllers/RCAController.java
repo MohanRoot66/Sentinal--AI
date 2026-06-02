@@ -2,7 +2,7 @@ package com.example.sentinalAI.controllers;
 
 import com.example.sentinalAI.models.Log;
 import com.example.sentinalAI.repositories.LogRepository;
-import com.example.sentinalAI.services.GeminiService;
+import com.example.sentinalAI.services.AIOrchestrator;
 import com.example.sentinalAI.services.LogAnalysisPipeline;
 import com.example.sentinalAI.services.LogGeneratorService;
 import com.example.sentinalAI.services.LogGeneratorService.Scenario;
@@ -27,7 +27,7 @@ import java.util.Map;
 public class RCAController {
 
     private final LogGeneratorService logGeneratorService;
-    private final GeminiService geminiService;
+    private final AIOrchestrator aiOrchestrator;
     private final LogAnalysisPipeline pipeline;
     private final LogRepository logRepository;
 
@@ -68,7 +68,7 @@ public class RCAController {
 
     @PostMapping("/analyze")
     @Operation(summary = "Analyze logs with AI",
-               description = "Runs rule-based anomaly detection pipeline first, then sends only the anomaly report + key evidence to Gemini AI")
+               description = "Runs rule-based anomaly detection pipeline first, then sends only the anomaly report + key evidence to the configured AI (Ollama/Gemini)")
     public ResponseEntity<Map<String, Object>> analyzeWithAI(
             @RequestParam(defaultValue = "UNKNOWN") String scenario) {
         log.info("Starting AI analysis for scenario: {}", scenario);
@@ -80,20 +80,19 @@ public class RCAController {
             ));
         }
 
-        // Run pipeline first to get metadata for the response
         LogAnalysisPipeline.DetectionReport report = pipeline.run(logs, scenario);
 
         long start = System.currentTimeMillis();
-        String rca = geminiService.analyzeLogsForRCA(logs, scenario);
+        String rca = aiOrchestrator.analyzeLogsForRCA(logs, scenario);
         long duration = System.currentTimeMillis() - start;
 
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("scenario", scenario);
         resp.put("logsAnalyzed", logs.size());
         resp.put("analysisTimeMs", duration);
+        resp.put("aiProvider", aiOrchestrator.getActiveProvider());
         resp.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         resp.put("rca", rca);
-        // Pipeline metadata — shows the demo audience what the pipeline detected
         resp.put("pipeline", Map.of(
                 "rawLogsIngested", logs.size(),
                 "anomaliesDetected", report.detectedAnomalies().size(),
@@ -110,22 +109,23 @@ public class RCAController {
 
     @PostMapping("/generate-and-analyze")
     @Operation(summary = "Generate logs and immediately analyze with AI",
-               description = "One-shot: generates logs for the scenario then runs Gemini AI analysis")
+               description = "One-shot: generates logs then runs AI analysis via configured provider (Ollama/Gemini)")
     public ResponseEntity<Map<String, Object>> generateAndAnalyze(
             @RequestParam(defaultValue = "LATENCY_SPIKE") String scenario) {
         try {
             Scenario s = Scenario.valueOf(scenario.toUpperCase());
             List<Log> logs = logGeneratorService.generateLogs(s);
-            log.info("Generated {} logs for scenario {}. Starting Gemini AI analysis...", logs.size(), scenario);
+            log.info("Generated {} logs for scenario {}. Starting AI analysis...", logs.size(), scenario);
 
             long start = System.currentTimeMillis();
-            String rca = geminiService.analyzeLogsForRCA(logs, scenario);
+            String rca = aiOrchestrator.analyzeLogsForRCA(logs, scenario);
             long duration = System.currentTimeMillis() - start;
 
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("scenario", scenario);
             resp.put("logsGenerated", logs.size());
             resp.put("analysisTimeMs", duration);
+            resp.put("aiProvider", aiOrchestrator.getActiveProvider());
             resp.put("generatedAt", LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
             resp.put("rca", rca);
             resp.put("logSample", logs.stream().limit(10).map(this::toLogMap).toList());
